@@ -1,0 +1,94 @@
+--- origsrc/gnome-nettool-3.0.1/src/netstat.c	2012-01-03 03:10:16.000000000 -0600
++++ src/gnome-nettool-3.0.1/src/netstat.c	2012-01-03 05:17:06.531568800 -0600
+@@ -120,6 +120,12 @@ netstat_get_active_option (Netinfo * net
+ 		} else {
+ 			option = g_strdup ("-rn -f inet");
+ 		}
++#elif defined(__CYGWIN__)
++		if (netinfo_is_ipv6_enable ()) {
++			option = g_strdup ("-rn -p TCP -p TCPv6");
++		} else {
++			option = g_strdup ("-rn -p TCP");
++		}
+ #else
+ 		/* Works for Solaris and Linux */
+ 		if (netinfo_is_ipv6_enable ()) {
+@@ -137,6 +143,13 @@ netstat_get_active_option (Netinfo * net
+ 		/* Only works for Solaris */
+ #if defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
+ 	    	option = g_strdup ("-a -f inet -ln");
++#elif defined(__CYGWIN__)
++		if (netinfo_is_ipv6_enable ()) {
++			option = g_strdup ("-a -p TCP -p TCPv6 -n");
++		} else {
++			option = g_strdup ("-a -p TCP -n");
++		}
++	    	option = g_strdup ("-a -p TCP -n");
+ #else
+ 		if (netinfo_is_ipv6_enable ()) {
+ 			option = g_strdup ("-A inet -A inet6 -ln");
+@@ -410,6 +423,23 @@ strip_protocol_line (gchar * line, netst
+ 	    }
+ 	}
+ 
++#elif defined(__CYGWIN__)
++	count = sscanf (line, NETSTAT_PROTOCOL_FORMAT,
++			data->protocol,	laddr, s6, data->state);
++
++	port = g_strrstr (laddr, ":");
++
++	if (port != NULL) {
++		g_strlcpy (data->ip_src, laddr, 50 * sizeof (gchar));
++		data->ip_src[strlen (laddr) - strlen (port)] = '\0';
++		port ++;
++		g_strlcpy (data->port_src, port, 30 * sizeof (gchar));
++	}
++
++	if (count == 5) {
++		bzero (&(data)->state, 30);
++	}
++
+ #else
+ 	/*count = sscanf (line, NETSTAT_PROTOCOL_FORMAT,
+ 			data->protocol, &n2, &n3,
+@@ -590,6 +620,11 @@ strip_route_line (gchar * line, netstat_
+ 			data->gateway, flags,
+ 			&ref, &use, &mtu, &prio,
+ 			data->iface);
++#elif defined(__CYGWIN__)
++	count = sscanf (line, NETSTAT_ROUTE_FORMAT,
++			data->destination,
++			data->netmask, data->gateway,
++			data->iface, &(data)->metric);
+ #else
+ 	count = sscanf (line, NETSTAT_ROUTE_FORMAT,
+ 			data->destination,
+--- origsrc/gnome-nettool-3.0.1/src/netstat.h	2012-01-03 03:10:16.000000000 -0600
++++ src/gnome-nettool-3.0.1/src/netstat.h	2012-01-03 05:18:53.842195500 -0600
+@@ -39,6 +39,12 @@
+ #   define NETSTAT_ROUTE_FORMAT "%s %s %s %d %d %s %d %s"
+ #   define NETSTAT_MULTICAST_FORMAT "%s %d %s"
+ 
++#elif defined(__CYGWIN__)
++	/* proto 0 0 ip port ip port state */
++#   define NETSTAT_PROTOCOL_FORMAT "%s %s %s %s"
++#   define NETSTAT_ROUTE_FORMAT "%s %s %s %s %d"
++#   define NETSTAT_MULTICAST_FORMAT "%s %d %s"
++
+ #endif
+ 
+ typedef enum {
+--- origsrc/gnome-nettool-3.0.1/src/ping.h	2011-12-31 17:54:24.000000000 -0600
++++ src/gnome-nettool-3.0.1/src/ping.h	2012-01-03 05:29:26.979593700 -0600
+@@ -44,6 +44,11 @@
+ #   define PING_PROGRAM_FORMAT_6 "%s ping %s -f inet6 -n%s"
+ #   define PING_FORMAT "%d bytes from %s icmp_seq=%d. time=%f %s"
+ #   define PING_PARAMS_5
++#elif defined(__CYGWIN__)
++#   define PING_PROGRAM_FORMAT "%s ping %s -n %s"
++#   define PING_PROGRAM_FORMAT_6 "%s ping -6 %s -n %s"
++#   define PING_FORMAT "%d bytes from %s bytes=%d time=%f%s TTL=%d"
++#   define PING_PARAMS_5
+ #else
+ #   define PING_PROGRAM_FORMAT "%s ping %s -n %s"
+ #   define PING_PROGRAM_FORMAT_6 "%s ping6 %s -n %s"
